@@ -1277,9 +1277,9 @@ namespace :redmine do
               # We would like to convert the Code highlighting too
               # This will go into the next line.
               shebang_line = false
-              # Reguar expression for start of code
+              # Regular expression for start of code
               pre_re = /\{\{\{/
-              # Code hightlighing...
+              # Code highlighting...
               shebang_re = /^\#\!([a-z]+)/
               # Regular expression for end of code
               pre_end_re = /\}\}\}/
@@ -1471,4 +1471,3 @@ namespace :redmine do
     out.flush
   end
 end
-
