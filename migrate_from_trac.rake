@@ -1,5 +1,5 @@
 # Redmine - project management software
-# Copyright (C) 2006-2007  Jean-Philippe Lang
+# Copyright (C) 2006-2011  Jean-Philippe Lang
 # Copyright (C) 2007-2011  Trac/Redmine Community
 # References:
 #  - http://www.redmine.org/boards/1/topics/12273 (Trac Importer Patch Coordination)
@@ -943,10 +943,10 @@ namespace :redmine do
     prompt('Trac database encoding', :default => 'UTF-8') {|encoding| TracMigrate.encoding encoding}
     prompt('Target project identifier') {|identifier| TracMigrate.target_project_identifier identifier.downcase}
     puts
-    
+
     # Turn off email notifications
     Setting.notified_events = []
-    
+
     TracMigrate.migrate
   end
 
