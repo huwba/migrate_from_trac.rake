@@ -66,7 +66,7 @@ namespace :redmine do
                            'patch' =>TRACKER_FEATURE
                            }
 
-        roles = Role.find(:all, :conditions => {:builtin => 0}, :order => 'position ASC')
+        roles = Role.where(:builtin => 0).order('position ASC').all
         manager_role = roles[0]
         developer_role = roles[1]
         DEFAULT_ROLE = roles.last
@@ -342,7 +342,7 @@ namespace :redmine do
         who = "Migrating components"
         issues_category_map = {}
         components_total = TracComponent.count
-        TracComponent.find(:all).each do |component|
+        TracComponent.all.each do |component|
           c = IssueCategory.new :project => @target_project,
                                 :name => encode(component.name[0, limit_for(IssueCategory, 'name')])
         # Owner
@@ -361,7 +361,7 @@ namespace :redmine do
         version_map = {}
         milestone_wiki = Array.new
         milestones_total = TracMilestone.count
-        TracMilestone.find(:all).each do |milestone|
+        TracMilestone.all.each do |milestone|
           # First we try to find the wiki page...
           p = wiki.find_or_new_page(milestone.name.to_s)
           p.content = WikiContent.new(:page => p) if p.new_record?
@@ -412,7 +412,7 @@ namespace :redmine do
                                         :field_format => format)
 
           next if f.new_record?
-          f.trackers = Tracker.find(:all)
+          f.trackers = Tracker.all
           f.projects << @target_project
           custom_field_map[field.name] = f
         end
@@ -688,7 +688,7 @@ namespace :redmine do
         who = "Migrating wiki"
         if wiki.save
           wiki_edits_total = TracWikiPage.count
-          TracWikiPage.find(:all, :order => 'name, version').each do |page|
+          TracWikiPage.order('name, version').all.each do |page|
             # Do not migrate Trac manual wiki pages
             if TRAC_WIKI_PAGES.include?(page.name) then
               wiki_edits_total -= 1
