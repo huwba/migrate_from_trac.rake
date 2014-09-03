@@ -649,7 +649,7 @@ namespace :redmine do
                 t.errors.each_full{|msg| puts msg }
               end
               # Set correct changetime of the issue
-              next unless Time.fake(ticket.changetime) { i.save }
+              next unless i.save
               n.save unless n.details.empty? && n.notes.blank?
               noteid += 1
           end
@@ -774,7 +774,7 @@ namespace :redmine do
           # convert issue description
           issue.description = convert_wiki_text(issue.description)
           # Converted issue comments had their last updated time set to the day of the migration (bugfix)
-          next unless Time.fake(issue.updated_on) { issue.save }
+          next unless issue.save
           # convert issue journals
           issue.journals.find(:all).each do |journal|
             journal.notes = convert_wiki_text(journal.notes)
