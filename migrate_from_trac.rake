@@ -885,7 +885,7 @@ namespace :redmine do
       mattr_reader :trac_directory, :trac_adapter, :trac_db_host, :trac_db_port, :trac_db_name, :trac_db_schema, :trac_db_username, :trac_db_password
 
       def self.trac_db_path; "#{trac_directory}/db/trac.db" end
-      def self.trac_attachments_directory; "#{trac_directory}/attachments" end
+      def self.trac_attachments_directory; "#{trac_directory}/files/attachments" end
 
       def self.target_project_identifier(identifier)
         project = Project.find_by_identifier(identifier)
