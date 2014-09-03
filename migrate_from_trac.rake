@@ -657,7 +657,7 @@ namespace :redmine do
                                   :activity_id => TimeEntryActivity.find_by_position(2).id,
                                   :comments => "#{convert_wiki_text(n.notes.each_line.first.chomp)[0,100] unless !n.notes.each_line.first}... \"more\":/issues/#{i.id}#note-#{noteid}")
                 t.save
-                t.errors.each_full{|msg| puts msg }
+                t.errors.to_a.each{|msg| puts msg }
               end
               # Set correct changetime of the issue
               next unless i.save
