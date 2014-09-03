@@ -92,17 +92,22 @@ namespace :redmine do
 
       class ::Time
         class << self
-          alias :real_now :now
-          def now
-            real_now - @fake_diff.to_i
-          end
-          def fake(time)
-            @fake_diff = real_now - time
-            res = yield
-            @fake_diff = 0
-           res
+          def at2(time)
+            # In Trac ticket #6466, timestamps
+            # were changed from seconds since the epoch
+            # to microseconds since the epoch.  The
+            # Trac database version was bumped to 23 for this.
+            if TracMigrate.database_version > 22
+               Time.at(time / 1000000)
+            else
+               Time.at(time)
+            end
           end
         end
+      end
+
+      class TracSystem < ActiveRecord::Base
+        self.table_name = :system
       end
 
       class TracComponent < ActiveRecord::Base
@@ -114,7 +119,7 @@ namespace :redmine do
         # If this attribute is set a milestone has a defined target timepoint
         def due
           if read_attribute(:due) && read_attribute(:due) > 0
-            Time.at(read_attribute(:due)).to_date
+            Time.at2(read_attribute(:due)).to_date
           else
             nil
           end
@@ -122,7 +127,7 @@ namespace :redmine do
         # This is the real timepoint at which the milestone has finished.
         def completed
           if read_attribute(:completed) && read_attribute(:completed) > 0
-            Time.at(read_attribute(:completed)).to_date
+            Time.at2(read_attribute(:completed)).to_date
           else
             nil
           end
@@ -142,7 +147,9 @@ namespace :redmine do
         self.table_name = :attachment
         set_inheritance_column :none
 
-        def time; Time.at(read_attribute(:time)) end
+        def time
+          Time.at2(read_attribute(:time))
+        end
 
         def original_filename
           filename
@@ -208,8 +215,13 @@ namespace :redmine do
           read_attribute(:description).blank? ? summary : read_attribute(:description)
         end
 
-        def time; Time.at(read_attribute(:time)) end
-        def changetime; Time.at(read_attribute(:changetime)) end
+        def time
+            Time.at2(read_attribute(:time))
+        end
+
+        def changetime
+            Time.at2(read_attribute(:changetime))
+        end
       end
 
       class TracTicketChange < ActiveRecord::Base
@@ -220,7 +232,9 @@ namespace :redmine do
           super.select {|column| column.name.to_s != 'field'}
         end
 
-        def time; Time.at(read_attribute(:time)) end
+        def time
+            Time.at2(read_attribute(:time))
+        end
       end
 
       TRAC_WIKI_PAGES = %w(InterMapTxt InterTrac InterWiki RecentChanges SandBox TracAccessibility TracAdmin TracBackup \
@@ -245,7 +259,9 @@ namespace :redmine do
           TracMigrate::TracAttachment.all(:conditions => ["type = 'wiki' AND id = ?", self.id.to_s])
         end
 
-        def time; Time.at(read_attribute(:time)) end
+        def time
+          Time.at2(read_attribute(:time))
+        end
       end
 
       class TracPermission < ActiveRecord::Base
@@ -327,7 +343,8 @@ namespace :redmine do
 
         # Quick database test
         TracComponent.count
-
+        lookup_database_version
+        print "Trac database version is: ", database_version, "\n" 
         migrated_components = 0
         migrated_milestones = 0
         migrated_tickets = 0
@@ -498,14 +515,14 @@ namespace :redmine do
           i.tracker = TRACKER_MAPPING[ticket.ticket_type] || DEFAULT_TRACKER
           # Use the Redmine-genereated new ticket ID anyway (no Ticket ID recycling)
           #i.id = ticket.id unless Issue.exists?(ticket.id)
-          next unless Time.fake(ticket.changetime) { i.save }
+          next unless i.save
           TICKET_MAP[ticket.id] = i.id
           migrated_tickets += 1
           simplebar(who, migrated_tickets, tickets_total)
           # Owner
             unless ticket.owner.blank?
               i.assigned_to = find_or_create_user(ticket.owner, true)
-              Time.fake(ticket.changetime) { i.save }
+              i.save
             end
           # Handle CC field
    # Feature disabled (CC field almost never used, No time to validate/test this recent improvments from A. Callegaro)
@@ -703,7 +720,7 @@ namespace :redmine do
             p.content.text = page.text
             p.content.author = find_or_create_user(page.author) unless page.author.blank? || page.author == 'trac'
             p.content.comments = page.comment
-            Time.fake(page.time) { p.new_record? ? p.save : p.content.save }
+            p.new_record? ? p.save : p.content.save
             migrated_wiki_edits += 1
             simplebar(who, migrated_wiki_edits, wiki_edits_total)
 
@@ -739,7 +756,7 @@ namespace :redmine do
         wiki_pages_total = wiki.pages.count
         wiki.pages.each do |page|
           page.content.text = convert_wiki_text(page.content.text)
-          Time.fake(page.content.updated_on) { page.content.save }
+          page.content.save
           wiki_pages_count += 1
           simplebar(who, wiki_pages_count, wiki_pages_total)
         end
@@ -802,6 +819,15 @@ namespace :redmine do
 
       def self.encoding(charset)
         @charset = charset
+      end
+
+      def self.lookup_database_version
+        f = TracSystem.find_by_name("database_version")
+        @@database_version = f.value.to_i
+      end
+
+      def self.database_version
+        @@database_version
       end
 
       def self.set_trac_directory(path)
