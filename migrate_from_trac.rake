@@ -685,17 +685,17 @@ namespace :redmine do
             custom_values[custom_field_map['tracid'].id] = ticket.id
           end
 
-          if !ticket.version.blank? && custom_field_map['found_in_version']
-            found_in = version_map[ticket.version]
-            if !found_in.nil?
-              puts "Issue #{i.id} found in #{found_in.name.to_s} (#{found_in.id.to_s}) - trac: #{ticket.version}"
-            else
-              #TODO: add better error management here...
-              puts "Issue #{i.id} : ouch...  - trac: #{ticket.version}"  
-            end 
-            custom_values[custom_field_map['found_in_version'].id] = found_in.id.to_s
-            STDOUT.flush
-          end
+          #if !ticket.version.blank? && custom_field_map['found_in_version']
+          #  found_in = version_map[ticket.version]
+          #  if !found_in.nil?
+          #    puts "Issue #{i.id} found in #{found_in.name.to_s} (#{found_in.id.to_s}) - trac: #{ticket.version}"
+          #  else
+          #    #TODO: add better error management here...
+          #    puts "Issue #{i.id} : ouch...  - trac: #{ticket.version}"  
+          #  end 
+          #  custom_values[custom_field_map['found_in_version'].id] = found_in.id.to_s
+          #  STDOUT.flush
+          #end
 
           i.custom_field_values = custom_values
           i.save_custom_field_values
