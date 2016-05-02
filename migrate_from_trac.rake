@@ -268,7 +268,7 @@ namespace :redmine do
         end
 
         def attachments
-          TracMigrate::TracAttachment.all(:conditions => ["type = 'wiki' AND id = ?", self.id.to_s])
+          TracMigrate::TracAttachment.where(:type => 'wiki', :id => self.id.to_s)
         end
 
         def time
