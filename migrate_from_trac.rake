@@ -788,7 +788,7 @@ namespace :redmine do
           # Converted issue comments had their last updated time set to the day of the migration (bugfix)
           next unless issue.save
           # convert issue journals
-          issue.journals.find(:all).each do |journal|
+          issue.journals.all.each do |journal|
             journal.notes = convert_wiki_text(journal.notes)
             journal.save
           end
