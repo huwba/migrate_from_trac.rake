@@ -147,6 +147,7 @@ namespace :redmine do
       class TracAttachment < ActiveRecord::Base
         self.table_name = :attachment
         self.inheritance_column = :none
+        self.primary_key = :time #TODO prevents ActiveRecord::UnknownPrimaryKey, but time is not the correct primary key
 
         def time
           Time.at2(read_attribute(:time))
@@ -211,7 +212,7 @@ namespace :redmine do
         has_many :customs, :class_name => "TracTicketCustom", :foreign_key => :ticket
 
         def attachments
-          TracMigrate::TracAttachment.find(:all, :conditions => ["type = 'ticket' AND id = ?", self.id.to_s])
+          TracMigrate::TracAttachment.where(:type => 'ticket' , :id => self.id.to_s)
         end
 
         def ticket_type
