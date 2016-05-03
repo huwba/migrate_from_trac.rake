@@ -147,7 +147,11 @@ namespace :redmine do
       class TracAttachment < ActiveRecord::Base
         self.table_name = :attachment
         self.inheritance_column = :none
-        self.primary_key = :time #TODO prevents ActiveRecord::UnknownPrimaryKey, but time is not the correct primary key
+
+        self.primary_key = :id
+        # NOTE: not correct as this should be composed, but this prevents
+        # failing import of attachments as the id is otherwise not correct or a
+        # ActiveRecord::UnknownPrimaryKey will occure
 
         def time
           Time.at2(read_attribute(:time))
@@ -195,11 +199,13 @@ namespace :redmine do
         end
 
         def trac_fullpath
+
           attachment_type = read_attribute(:type)
           ticket_id = read_attribute(:id)
           filename  = read_attribute(:filename)
           path = get_path(ticket_id, filename)
           "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
+
         end
       end
 
@@ -668,6 +674,7 @@ namespace :redmine do
 
           # Attachments
           ticket.attachments.each do |attachment|
+            print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
             next unless attachment.exist?
               attachment.open {
                 a = Attachment.new :created_on => attachment.time
