@@ -865,7 +865,7 @@ namespace :redmine do
 
       def self.set_trac_adapter(adapter)
         return false if adapter.blank?
-        raise "Unknown adapter: #{adapter}!" unless %w(sqlite3 mysql postgresql).include?(adapter)
+        raise "Unknown adapter: #{adapter}!" unless %w(sqlite3 mysql2 postgresql).include?(adapter)
         # If adapter is sqlite or sqlite3, make sure that trac.db exists
         raise "#{trac_db_path} doesn't exist!" if %w(sqlite3).include?(adapter) && !File.exist?(trac_db_path)
         @@trac_adapter = adapter
@@ -980,7 +980,7 @@ namespace :redmine do
     break unless STDIN.gets.match(/^y$/i)
     puts
 
-    DEFAULT_PORTS = {'mysql' => 3306, 'postgresql' => 5432}
+    DEFAULT_PORTS = {'mysql2' => 3306, 'postgresql' => 5432}
 
     prompt('Trac directory') {|directory| TracMigrate.set_trac_directory directory.strip}
     prompt('Trac database adapter (sqlite3, mysql2, postgresql)', :default => 'sqlite3') {|adapter| TracMigrate.set_trac_adapter adapter}
