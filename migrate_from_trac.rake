@@ -184,13 +184,23 @@ namespace :redmine do
           read_attribute(:description).to_s.slice(0,255)
         end
 
+	def trac_fullpath
+
+          attachment_type = read_attribute(:type)
+          ticket_id = read_attribute(:id)
+          filename  = read_attribute(:filename)
+          path = get_path(ticket_id, filename)
+          "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
+
+        end
+	
       private
 
         def sha1(s)
             return Digest::SHA1.hexdigest(s)
         end
-
-        def get_path(ticket_id, filename)
+	
+	def get_path(ticket_id, filename)
 	    
 	    # FIXME autodetect the different attachment
 	    # storage naming strategies trac
@@ -208,17 +218,7 @@ namespace :redmine do
             a = [ t, "/", f ]
 	    
             return a.join("")
-        end
-
-        def trac_fullpath
-
-          attachment_type = read_attribute(:type)
-          ticket_id = read_attribute(:id)
-          filename  = read_attribute(:filename)
-          path = get_path(ticket_id, filename)
-          "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
-
-        end
+	end
       end
 
       class TracTicket < ActiveRecord::Base
@@ -689,6 +689,7 @@ namespace :redmine do
           # Attachments
           ticket.attachments.each do |attachment|
             print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
+	    print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
             next unless attachment.exist?
               attachment.open {
                 a = Attachment.new :created_on => attachment.time
