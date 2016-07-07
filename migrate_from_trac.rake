@@ -204,7 +204,7 @@ namespace :redmine do
 	    
 	    # older versions of trac (pre 1.0?)
 	    t = ticket_id.to_s
-            f = filename
+            f = URI::encode(filename)
             a = [ t, "/", f ]
 	    
             return a.join("")
