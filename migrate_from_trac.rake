@@ -531,8 +531,10 @@ namespace :redmine do
           i.fixed_version = version_map[ticket.milestone] unless ticket.milestone.blank?
           i.status = STATUS_MAPPING[ticket.status] || DEFAULT_STATUS
           i.tracker = TRACKER_MAPPING[ticket.ticket_type] || DEFAULT_TRACKER
-          # Use the Redmine-genereated new ticket ID anyway (no Ticket ID recycling)
-          #i.id = ticket.id unless Issue.exists?(ticket.id)
+	  if self.preserve_ticket_ids == 'y'
+            # Ticket ID recycling
+	    i.id = ticket.id unless Issue.exists?(ticket.id)
+	  end
           next unless i.save
           TICKET_MAP[ticket.id] = i.id
           migrated_tickets += 1
@@ -900,8 +902,12 @@ namespace :redmine do
       def self.set_trac_db_schema(schema)
         @@trac_db_schema = schema
       end
+      
+      def self.set_preserve_ticket_ids(preserve_ticket_ids)
+        @@preserve_ticket_ids = preserve_ticket_ids
+      end
 
-      mattr_reader :trac_directory, :trac_adapter, :trac_db_host, :trac_db_port, :trac_db_name, :trac_db_schema, :trac_db_username, :trac_db_password
+      mattr_reader :trac_directory, :trac_adapter, :trac_db_host, :trac_db_port, :trac_db_name, :trac_db_schema, :trac_db_username, :trac_db_password, :preserve_ticket_ids
 
       def self.trac_db_path; "#{trac_directory}/db/trac.db" end
       def self.trac_attachments_directory; "#{trac_directory}/files/attachments" end
@@ -994,6 +1000,7 @@ namespace :redmine do
     end
     prompt('Trac database encoding', :default => 'UTF-8') {|encoding| TracMigrate.encoding encoding}
     prompt('Target project identifier') {|identifier| TracMigrate.target_project_identifier identifier.downcase}
+    prompt('Preserve Trac ticket ids [Y,n]', :default => 'y') {|preserve_ids| TracMigrate.set_preserve_ticket_ids preserve_ids.downcase}
     puts
 
     old_notified_events = Setting.notified_events
