@@ -205,8 +205,7 @@ namespace :redmine do
 	    # older versions of trac (pre 1.0?)
 	    t = ticket_id.to_s
             f = filename
-            ext = File.extname(filename)
-            a = [ t, "/", f, ext ]
+            a = [ t, "/", f ]
 	    
             return a.join("")
         end
