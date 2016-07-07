@@ -191,10 +191,23 @@ namespace :redmine do
         end
 
         def get_path(ticket_id, filename)
-            t = sha1(ticket_id.to_s)
-            f = sha1(filename)
+	    
+	    # FIXME autodetect the different attachment
+	    # storage naming strategies trac
+	    # (un-)comment the needed lines
+	  
+	    # most recent versions of trac:
+            #t = sha1(ticket_id.to_s)
+            #f = sha1(filename)
+            #ext = File.extname(filename)
+            #a = [ t[0..2], "/", t, "/", f, ext ]
+	    
+	    # older versions of trac (pre 1.0?)
+	    t = ticket_id.to_s
+            f = filename
             ext = File.extname(filename)
-            a = [ t[0..2], "/", t, "/", f, ext ]
+            a = [ t, "/", f, ext ]
+	    
             return a.join("")
         end
 
