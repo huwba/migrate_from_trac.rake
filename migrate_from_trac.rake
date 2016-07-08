@@ -861,10 +861,10 @@ namespace :redmine do
         puts "Components:      #{migrated_components}/#{components_total}"
         puts "Milestones:      #{migrated_milestones}/#{milestones_total}"
         puts "Tickets:         #{migrated_tickets}/#{tickets_total}"
-        puts "Ticket files:    #{migrated_ticket_attachments}/" + TracAttachment.count(:conditions => {:type => 'ticket'}).to_s
+        puts "Ticket files:    #{migrated_ticket_attachments}/" + TracAttachment.where("type = 'ticket'").count.to_s
         puts "Custom values:   #{migrated_custom_values}/#{TracTicketCustom.count}"
         puts "Wiki edits:      #{migrated_wiki_edits}/#{wiki_edits_total}"
-        puts "Wiki files:      #{migrated_wiki_attachments}/" + TracAttachment.count(:conditions => {:type => 'wiki'}).to_s
+        puts "Wiki files:      #{migrated_wiki_attachments}/" + TracAttachment.where("type = 'wiki'").count.to_s
       end
 
       def self.findIssue(id)
