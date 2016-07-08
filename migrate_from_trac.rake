@@ -19,6 +19,9 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
+# Editor presets:
+# kate: replace-tabs on; indent-width 4;
+
 require 'active_record'
 require 'iconv' if RUBY_VERSION < '1.9'
 require 'pp'
@@ -189,8 +192,20 @@ namespace :redmine do
           attachment_type = read_attribute(:type)
           ticket_id = read_attribute(:id)
           filename  = read_attribute(:filename)
-          path = get_path(ticket_id, filename)
-          "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
+	  
+          path = get_path_1_0(ticket_id, filename)
+          full_path_1_0 = "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
+	  return full_path_1_0 if File.file? full_path_1_0 
+	  
+	  path = get_path_pre_1_0(ticket_id, filename)
+          full_path_pre_1_0 = "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
+	  return full_path_pre_1_0 if File.file? full_path_pre_1_0 
+	  
+	  path = get_path_pre_0_11(ticket_id, filename)
+          full_path_pre_0_11 = "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
+	  return full_path_pre_0_11 if File.file? full_path_pre_0_11 
+	  
+          return full_path_pre_1_0 # needed for logging 
 
         end
 	
@@ -198,23 +213,33 @@ namespace :redmine do
 
         def sha1(s)
             return Digest::SHA1.hexdigest(s)
-        end
+	end
 	
-	def get_path(ticket_id, filename)
-	    
-	    # FIXME autodetect the different attachment
-	    # storage naming strategies trac
-	    # (un-)comment the needed lines
-	  
-	    # most recent versions of trac:
-            #t = sha1(ticket_id.to_s)
-            #f = sha1(filename)
-            #ext = File.extname(filename)
-            #a = [ t[0..2], "/", t, "/", f, ext ]
+	def get_path_1_0(ticket_id, filename)
+	
+	    # suitable for most recent versions of trac:
+            t = sha1(ticket_id.to_s)
+            f = sha1(filename)
+            ext = File.extname(filename)
+            a = [ t[0..2], "/", t, "/", f, ext ]
+            return a.join("")
+	end
+	
+	def get_path_pre_1_0(ticket_id, filename)
 	    
 	    # older versions of trac (pre 1.0?)
 	    t = ticket_id.to_s
             f = URI::encode(filename, Regexp.new("[^a-zA-Z0-9\._\-]"))
+            a = [ t, "/", f ]
+	    
+            return a.join("")
+	end
+	
+	def get_path_pre_0_11(ticket_id, filename)
+	    
+	    # older versions of trac (pre 0.11?)
+	    t = ticket_id.to_s
+            f = filename
             a = [ t, "/", f ]
 	    
             return a.join("")
