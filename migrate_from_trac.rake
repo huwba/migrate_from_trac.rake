@@ -762,6 +762,8 @@ namespace :redmine do
 
             # Attachments
             page.attachments.each do |attachment|
+	      print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
+	      print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
               next unless attachment.exist?
               next if p.attachments.find_by_filename(attachment.filename.gsub(/^.*(\\|\/)/, '').gsub(/[^\w\.\-]/,'_')) #add only once per page
               attachment.open {
