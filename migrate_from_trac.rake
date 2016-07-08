@@ -1013,7 +1013,7 @@ namespace :redmine do
     end
     prompt('Trac database encoding', :default => 'UTF-8') {|encoding| TracMigrate.encoding encoding}
     prompt('Target project identifier') {|identifier| TracMigrate.target_project_identifier identifier.downcase}
-    prompt('Preserve Trac ticket ids [Y,n]', :default => 'y') {|preserve_ids| TracMigrate.set_preserve_ticket_ids preserve_ids.downcase}
+    prompt('Preserve Trac ticket ids (y|n)', :default => 'y') {|preserve_ids| TracMigrate.set_preserve_ticket_ids preserve_ids.downcase}
     puts
 
     old_notified_events = Setting.notified_events
