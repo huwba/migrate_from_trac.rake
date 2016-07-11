@@ -407,6 +407,8 @@ namespace :redmine do
         migrated_ticket_attachments = 0
         migrated_wiki_edits = 0
         migrated_wiki_attachments = 0
+        save_errors_wiki_attachments = 0
+        save_errors_ticket_attachments = 0
 
         # Wiki system initializing...
         @target_project.wiki.destroy if @target_project.wiki
@@ -450,7 +452,8 @@ namespace :redmine do
                           :name => encode(milestone.name[0, limit_for(Version, 'name')]),
                           :description => nil,
                           :wiki_page_title => milestone.name.to_s,
-                          :effective_date => (!milestone.completed.blank? ? milestone.completed : (!milestone.due.blank? ? milestone.due : nil))
+                          :effective_date => (!milestone.completed.blank? ? milestone.completed : (!milestone.due.blank? ? milestone.due : nil)),
+                          :status => (!milestone.completed.blank? ? 'closed' : 'open')
 
           next unless v.save
           version_map[milestone.name] = v
@@ -552,8 +555,8 @@ namespace :redmine do
         custom_field_map['tracid'] = tid
 
         # Tickets
-        skipTickets = true # ticket migration can be turned for debugging purposes
-        if !skipTickets
+        skipTickets = false # ticket migration can be turned for debugging purposes
+        #if !skipTickets
         who = "Migrating tickets"
           tickets_total = TracTicket.count
           TracTicket.all.each do |ticket|
@@ -724,7 +727,12 @@ namespace :redmine do
                 a.author = find_or_create_user(attachment.author)
                 a.container = i
                 a.description = attachment.description
-                migrated_ticket_attachments += 1 if a.save
+                if a.save
+                  migrated_ticket_attachments += 1
+                else
+                  # errors can be caused by file size restrictions see settings.yml attachment_max_size
+                  save_errors_ticket_attachments += 1
+                end
               }
           end
 
@@ -766,9 +774,10 @@ namespace :redmine do
         Issue.connection.reset_pk_sequence!(Issue.table_name) if Issue.connection.respond_to?('reset_pk_sequence!')
         puts if migrated_tickets < tickets_total
 
-        end # end of skipTickets debug switch
+        #end # end of skipTickets debug switch
 
         # Wiki
+        #ActiveRecord::Base.logger = Logger.new(STDOUT)
         who = "Migrating wiki"
         if wiki.save
           wiki_edits_total = TracWikiPage.count
@@ -790,28 +799,37 @@ namespace :redmine do
             next if p.content.new_record?
 
             # Attachments
+            debug_wiki = false
             print "Wikipage: #{page.name}\n"
             page.attachments.each do |attachment|
             print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
             print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
             next unless attachment.exist?
-            print "          a: #{attachment.filename}\n"
+            print "          a: #{attachment.filename}\n" if debug_wiki
             exists_in_page = false
             # check if attachment already exists for this page
             p.attachments.each do |existing_attachment|
-                print "          ?= exa: #{existing_attachment.filename}\n"
+                print "          ?= exa: #{existing_attachment.filename}" if debug_wiki
                 exists_in_page = true if existing_attachment.filename == attachment.filename
                 break if exists_in_page
             end
             next if exists_in_page
+            print '             -> create' if debug_wiki
               attachment.open {
                 a = Attachment.new :created_on => attachment.time
                 a.file = attachment
                 a.author = find_or_create_user(attachment.author)
                 a.description = attachment.description
                 a.container = p
-                migrated_wiki_attachments += 1 if a.save
+                if a.save
+                  migrated_wiki_attachments += 1
+                else
+                  # errors can be caused by file size restrictions see settings.yml attachment_max_size
+                  save_errors_wiki_attachments += 1
+                  print  '             ERROR on save' if debug_wiki
+                end
               }
+            print "\n" if debug_wiki
             end
           end
 
@@ -875,9 +893,11 @@ namespace :redmine do
         puts "Milestones:      #{migrated_milestones}/#{milestones_total}"
         puts "Tickets:         #{migrated_tickets}/#{tickets_total}"
         puts "Ticket files:    #{migrated_ticket_attachments}/" + TracAttachment.where("type = 'ticket'").count.to_s
+        puts "                 Errors on save ( #{save_errors_ticket_attachments})! This can be caused by file size restrictions. See settings.yml attachment_max_size" if save_errors_ticket_attachments > 0
         puts "Custom values:   #{migrated_custom_values}/#{TracTicketCustom.count}"
         puts "Wiki edits:      #{migrated_wiki_edits}/#{wiki_edits_total}"
         puts "Wiki files:      #{migrated_wiki_attachments}/" + TracAttachment.where("type = 'wiki'").count.to_s
+        puts "                 Errors on save ( #{save_errors_wiki_attachments})! This can be caused by file size restrictions. See settings.yml attachment_max_size"  if save_errors_wiki_attachments > 0
       end
 
       def self.findIssue(id)
