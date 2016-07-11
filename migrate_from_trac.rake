@@ -187,64 +187,64 @@ namespace :redmine do
           read_attribute(:description).to_s.slice(0,255)
         end
 
-	def trac_fullpath
+        def trac_fullpath
 
           attachment_type = read_attribute(:type)
           ticket_id = read_attribute(:id)
           filename  = read_attribute(:filename)
-	  
+          
           path = get_path_1_0(ticket_id, filename)
           full_path_1_0 = "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
-	  return full_path_1_0 if File.file? full_path_1_0 
-	  
-	  path = get_path_pre_1_0(ticket_id, filename)
+          return full_path_1_0 if File.file? full_path_1_0 
+          
+          path = get_path_pre_1_0(ticket_id, filename)
           full_path_pre_1_0 = "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
-	  return full_path_pre_1_0 if File.file? full_path_pre_1_0 
-	  
-	  path = get_path_pre_0_11(ticket_id, filename)
+          return full_path_pre_1_0 if File.file? full_path_pre_1_0 
+          
+          path = get_path_pre_0_11(ticket_id, filename)
           full_path_pre_0_11 = "#{TracMigrate.trac_attachments_directory}/#{attachment_type}/#{path}"
-	  return full_path_pre_0_11 if File.file? full_path_pre_0_11 
-	  
+          return full_path_pre_0_11 if File.file? full_path_pre_0_11 
+          
           return full_path_pre_1_0 # needed for logging 
 
         end
-	
+
       private
 
         def sha1(s)
             return Digest::SHA1.hexdigest(s)
-	end
-	
-	def get_path_1_0(ticket_id, filename)
-	
-	    # suitable for most recent versions of trac:
+        end
+
+        def get_path_1_0(ticket_id, filename)
+
+            # suitable for most recent versions of trac:
             t = sha1(ticket_id.to_s)
             f = sha1(filename)
             ext = File.extname(filename)
             a = [ t[0..2], "/", t, "/", f, ext ]
             return a.join("")
-	end
-	
-	def get_path_pre_1_0(ticket_id, filename)
-	    
-	    # older versions of trac (pre 1.0?)
-	    t = ticket_id.to_s
+        end
+        
+        def get_path_pre_1_0(ticket_id, filename)
+            
+            # older versions of trac (pre 1.0?)
+            t = ticket_id.to_s
             f = URI::encode(filename, Regexp.new("[^a-zA-Z0-9\._\-]"))
             a = [ t, "/", f ]
-	    
+            
             return a.join("")
-	end
-	
-	def get_path_pre_0_11(ticket_id, filename)
-	    
-	    # older versions of trac (pre 0.11?)
-	    t = ticket_id.to_s
+        end
+
+        def get_path_pre_0_11(ticket_id, filename)
+                
+            # older versions of trac (pre 0.11?)
+            t = ticket_id.to_s
             f = filename
             a = [ t, "/", f ]
-	    
+        
             return a.join("")
-	end
-      end
+        end
+    end
 
       class TracTicket < ActiveRecord::Base
         self.table_name = :ticket
@@ -568,10 +568,10 @@ namespace :redmine do
           i.fixed_version = version_map[ticket.milestone] unless ticket.milestone.blank?
           i.status = STATUS_MAPPING[ticket.status] || DEFAULT_STATUS
           i.tracker = TRACKER_MAPPING[ticket.ticket_type] || DEFAULT_TRACKER
-	  if self.preserve_ticket_ids == 'y'
+          if self.preserve_ticket_ids == 'y'
             # Ticket ID recycling
-	    i.id = ticket.id unless Issue.exists?(ticket.id)
-	  end
+            i.id = ticket.id unless Issue.exists?(ticket.id)
+          end
           next unless i.save
           TICKET_MAP[ticket.id] = i.id
           migrated_tickets += 1
@@ -714,7 +714,7 @@ namespace :redmine do
           # Attachments
           ticket.attachments.each do |attachment|
             print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
-	    print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
+            print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
             next unless attachment.exist?
               attachment.open {
                 a = Attachment.new :created_on => attachment.time
@@ -787,9 +787,9 @@ namespace :redmine do
 
             # Attachments
             page.attachments.each do |attachment|
-	      print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
-	      print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
-              next unless attachment.exist?
+            print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
+            print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
+            next unless attachment.exist?
             exists_in_page = false
             # check if attachment already exists for this page
             p.attachments.each do |existing_attachment|
