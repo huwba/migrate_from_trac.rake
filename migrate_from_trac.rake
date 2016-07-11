@@ -552,6 +552,8 @@ namespace :redmine do
         custom_field_map['tracid'] = tid
 
         # Tickets
+        skipTickets = true # ticket migration can be turned for debugging purposes
+        if !skipTickets
         who = "Migrating tickets"
           tickets_total = TracTicket.count
           TracTicket.all.each do |ticket|
@@ -763,6 +765,8 @@ namespace :redmine do
         # update issue id sequence if needed (postgresql)
         Issue.connection.reset_pk_sequence!(Issue.table_name) if Issue.connection.respond_to?('reset_pk_sequence!')
         puts if migrated_tickets < tickets_total
+
+        end # end of skipTickets debug switch
 
         # Wiki
         who = "Migrating wiki"
