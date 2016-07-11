@@ -786,10 +786,12 @@ namespace :redmine do
             next if p.content.new_record?
 
             # Attachments
+            print "Wikipage: #{page.name}\n"
             page.attachments.each do |attachment|
             print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
             print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
             next unless attachment.exist?
+            print "          a: #{attachment.filename}\n"
             exists_in_page = false
             # check if attachment already exists for this page
             p.attachments.each do |existing_attachment|
