@@ -437,6 +437,7 @@ namespace :redmine do
         # Milestones
         who = "Migrating milestones"
         version_map = {}
+        milestones_closed = Array.new
         milestone_wiki = Array.new
         milestones_total = TracMilestone.count
         TracMilestone.all.each do |milestone|
@@ -452,11 +453,11 @@ namespace :redmine do
                           :name => encode(milestone.name[0, limit_for(Version, 'name')]),
                           :description => nil,
                           :wiki_page_title => milestone.name.to_s,
-                          :effective_date => (!milestone.completed.blank? ? milestone.completed : (!milestone.due.blank? ? milestone.due : nil)),
-                          :status => (!milestone.completed.blank? ? 'closed' : 'open')
+                          :effective_date => (!milestone.completed.blank? ? milestone.completed : (!milestone.due.blank? ? milestone.due : nil))
 
           next unless v.save
           version_map[milestone.name] = v
+          milestones_closed.push(v.id) if !milestone.completed.blank?
           milestone_wiki.push(milestone.name);
           migrated_milestones += 1
           simplebar(who, migrated_milestones, milestones_total)
@@ -555,8 +556,8 @@ namespace :redmine do
         custom_field_map['tracid'] = tid
 
         # Tickets
-        skipTickets = false # ticket migration can be turned for debugging purposes
-        #if !skipTickets
+        skipTickets = false # ticket migration can be turned off for debugging purposes
+        if !skipTickets
         who = "Migrating tickets"
           tickets_total = TracTicket.count
           TracTicket.all.each do |ticket|
@@ -774,7 +775,7 @@ namespace :redmine do
         Issue.connection.reset_pk_sequence!(Issue.table_name) if Issue.connection.respond_to?('reset_pk_sequence!')
         puts if migrated_tickets < tickets_total
 
-        #end # end of skipTickets debug switch
+        end # end of skipTickets debug switch
 
         # Wiki
         #ActiveRecord::Base.logger = Logger.new(STDOUT)
@@ -887,6 +888,17 @@ namespace :redmine do
           p.content.save
         end
         puts if milestone_wiki_count < milestone_wiki_total
+
+        who = "Close completed milestones"
+        milestones_closed_count = 0
+        #                          :status => (!milestone.completed.blank? ? 'closed' : 'open')
+        milestones_closed.each do |vid|
+          milestones_closed_count +=1
+          simplebar(who, milestones_closed_count, milestones_closed.length)
+          v = Version.find(vid)
+          v.status = 'closed'
+          print 'Error on updating closed version' if !v.save
+        end
 
         puts
         puts "Components:      #{migrated_components}/#{components_total}"
