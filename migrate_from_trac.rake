@@ -1496,6 +1496,8 @@ namespace :redmine do
         text = text.gsub(/milestone\:([^\ ]+?)/, 'version:\1')
 
         # Internal Links:
+        #      [SomeLink Link description]
+        text = text.gsub(/\[(.+?)\s+(.+?)\]/) {|s| "[[#{$1.delete(',./?;|:')}|#{$2}]]"}
         #      ["Some Link"]
         text = text.gsub(/\[([\"'])(.+?)\1\]/) {|s| "[[#{$2.delete(',./?;|:')}]]"}
         #      [wiki:"Some Link" "Link description"],[wiki:"Some Link" Link description]
