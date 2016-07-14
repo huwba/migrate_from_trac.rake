@@ -59,6 +59,7 @@ namespace :redmine do
                           'critical' => priorities[3],
                           'blocker' => priorities[4]
       }
+      CUSTOM_FIELD_NAME_SEVERITY = 'severity'
 
       TRACKER_BUG = Tracker.find_by_name('Bug')
       TRACKER_FEATURE = Tracker.find_by_name('Feature')
@@ -147,6 +148,16 @@ namespace :redmine do
       class TracPriority < ActiveRecord::Base
         self.table_name = :enum
         self.default_scope { where(:type => 'priority') }
+        self.inheritance_column = :none
+
+        def value
+          read_attribute(:value)
+        end
+      end
+
+      class TracSeverity < ActiveRecord::Base
+        self.table_name = :enum
+        self.default_scope { where(:type => 'severity') }
         self.inheritance_column = :none
 
         def value
@@ -415,6 +426,9 @@ namespace :redmine do
         TracComponent.count
         lookup_database_version
         print "Trac database version is: ", database_version, "\n"
+
+        custom_field_map = {}
+
         migrated_components = 0
         migrated_milestones = 0
         migrated_tickets = 0
@@ -432,21 +446,46 @@ namespace :redmine do
         wiki_edit_count = 0
 
         # Priorities
-
         who = "Migrating priorities"
         simplebar(who, 1, 2)
         IssuePriority.destroy_all
-        priority_count = 0
+        priority_index = 0
         TracPriority.order('value + 0').each do |priority| # implicit conversion to number by '+ 0'
-          priority_count += 1
+          priority_index += 1
           p = IssuePriority.create!(
               :name => priority['name'],
-              :position => priority_count,
-              :is_default  => priority_count == 2 ? true : false # HACK: second highest as default
+              :position => priority_index,
+              :is_default  => priority_index == 2 ? true : false # HACK: second highest as default
           )
-
         end
         simplebar(who, 2, 2)
+
+        # Severities
+        who = "Migrating severities"
+        simplebar(who, 0, 1)
+        severity_default = nil
+        severity_index = 0
+        severities = Array.new
+        TracSeverity.order('value + 0').each do |severity| # implicit conversion to number by '+ 0'
+          severity_index += 1
+          severity_default = severity['name'] if severity_index == 4 # HACK: 4th highest as default
+          severities.push(severity['name'])
+        end
+        f_severity = IssueCustomField.new(
+            :name => 'Severity',
+            :field_format => 'list',
+            :possible_values => severities,
+            :is_required => true,
+            :is_filter => true,
+            #:is_for_all => true,
+            :searchable => true,
+            :default_value => severity_default
+        )
+        f_severity.trackers << Tracker.all()
+        f_severity.projects << @target_project
+        f_severity.save!
+        custom_field_map[CUSTOM_FIELD_NAME_SEVERITY] = f_severity
+        simplebar(who, 1, 1)
 
         # Components
         who = "Migrating components"
@@ -499,7 +538,6 @@ namespace :redmine do
         # Custom fields
         # TODO: read trac.ini instead
         #print "Migrating custom fields"
-        custom_field_map = {}
         TracTicketCustom.find_by_sql("SELECT DISTINCT name FROM #{TracTicketCustom.table_name}").each do |field|
           # use line below and adapt the WHERE condifiton, if you want to skip some unused custom fields
           #        TracTicketCustom.find_by_sql("SELECT DISTINCT name FROM #{TracTicketCustom.table_name} WHERE name NOT IN ('duration', 'software')").each do |field|
@@ -511,15 +549,15 @@ namespace :redmine do
 #          # Ugly hack to skip custom field 'Browser', which is in 'list' format...
 #          next if field_name == 'browser'
 
-# Find if the custom already exists in Redmine
+          # Find if the custom already exists in Redmine
           f = IssueCustomField.find_by_name(field_name)
-# Ugly hack to handle billable checkbox. Would require to read the ini file to be cleaner
+          # Ugly hack to handle billable checkbox. Would require to read the ini file to be cleaner
           if field_name == 'Billable'
             format = 'bool'
           else
             format = 'string'
           end
-# Or create a new one
+          # Or create a new one
           f ||= IssueCustomField.create(:name => encode(field.name[0, limit_for(IssueCustomField, 'name')]).humanize,
                                         :field_format => format)
 
@@ -644,6 +682,7 @@ namespace :redmine do
               category_change = changeset.select { |change| change.field == 'component' }.first
               version_change = changeset.select { |change| change.field == 'milestone' }.first
               priority_change = changeset.select { |change| change.field == 'priority' }.first
+              severity_change = changeset.select { |change| change.field == 'severity' }.first
               subject_change = changeset.select { |change| change.field == 'summary' }.first
               tracker_change = changeset.select { |change| change.field == 'type' }.first
               time_change = changeset.select { |change| change.field == 'hours' }.first
@@ -717,6 +756,12 @@ namespace :redmine do
                                                :prop_key => PROP_MAPPING['priority'],
                                                :old_value => match_priority(priority_change.oldvalue),
                                                :value => match_priority(priority_change.newvalue))
+              end
+              if severity_change
+                n.details << JournalDetail.new(:property => 'cf',
+                                               :prop_key => custom_field_map[CUSTOM_FIELD_NAME_SEVERITY].id,
+                                               :old_value => severity_change.oldvalue,
+                                               :value => severity_change.newvalue)
               end
               # Handle subject/summary changes
               if subject_change
@@ -796,6 +841,9 @@ namespace :redmine do
             end
             if custom_field_map['keywords'] && !ticket.keywords.blank?
               custom_values[custom_field_map['keywords'].id] = ticket.keywords
+            end
+            if custom_field_map[CUSTOM_FIELD_NAME_SEVERITY] && !ticket.severity.blank?
+              custom_values[custom_field_map[CUSTOM_FIELD_NAME_SEVERITY].id] = ticket.severity
             end
             if custom_field_map['tracid']
               custom_values[custom_field_map['tracid'].id] = ticket.id
