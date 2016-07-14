@@ -353,6 +353,16 @@ namespace :redmine do
         self.table_name = :session_attribute
       end
 
+
+      # TODO define your own user name clean up rules in this method if needed
+      #
+      #
+      def self.fix_single_user_name(username)
+        # strip erroneously entered lists of users where a single user was expected
+        # e.g. in field owner
+        username = username.sub(/^([^,;\s]+).*$/, '\1')
+      end
+
       # TODO put your Login Mapping in this method and rename method below
       #      def self.find_or_create_user(username, project_member = false)
       #        TRAC_REDMINE_LOGIN_MAP = []
@@ -371,6 +381,8 @@ namespace :redmine do
 
       def self.find_or_create_user(username, project_member = false)
         return User.anonymous if username.blank?
+
+        username = fix_single_user_name(username)
 
         u = User.find_by_login(username)
         if !u
