@@ -622,13 +622,14 @@ namespace :redmine do
               i.save
             end
             # Handle CC field
-            # Feature disabled (CC field almost never used, No time to validate/test this recent improvments from A. Callegaro)
-            #       ticket.cc.split(',').each do |email|
-            #         w = Watcher.new :watchable_type => 'Issue',
-            #                         :watchable_id => i.id,
-            #                         :user_id => find_or_create_user(email.strip).id
-            #         w.save
-            #       end
+            #  - Feature disabled (CC field almost never used, No time to validate/test this recent improvments from A. Callegaro)
+            #  - Feature re-enabled and tested: Worked well with over 5000 tickets and about 7000 watcher records
+            ticket.cc.split(',').each do |email|
+               w = Watcher.new :watchable_type => 'Issue',
+                               :watchable_id => i.id,
+                               :user_id => find_or_create_user(email.strip).id
+               w.save
+             end
 
             # Necessary to handle direct link to note from timelogs and putting the right start time in issue
             noteid = 1
