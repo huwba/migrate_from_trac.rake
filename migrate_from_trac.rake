@@ -860,7 +860,7 @@ namespace :redmine do
 
             # Attachments
             debug_wiki = false
-            print "Wikipage: #{page.name}\n"
+            print "Wikipage: #{page.name}\n" if debug_wiki
             page.attachments.each do |attachment|
               print "missing attachment: #{attachment.original_filename}\n" unless attachment.exist?
               print "                    (trac path: #{attachment.trac_fullpath})\n" unless attachment.exist?
