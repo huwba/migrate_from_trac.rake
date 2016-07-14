@@ -964,16 +964,18 @@ namespace :redmine do
         issues_count = 0
         milestone_wiki_count = 0
 
-        who = "   in Wiki pages"
-        wiki.reload
-        wiki_pages_total = wiki.pages.count
-        wiki.pages.each do |page|
-          page.content.text = convert_wiki_text(page.content.text)
-          page.content.save
-          wiki_pages_count += 1
-          simplebar(who, wiki_pages_count, wiki_pages_total)
+        who = "   in Wiki contents"
+        wiki_content_total = WikiContent.count
+        wiki_content_count = 0
+        WikiContent.all.each do |wiki|
+          ([wiki] + wiki.versions).each do |version|
+            version.text = convert_wiki_text(version.text)
+            version.save
+          end
+          wiki_content_count += 1
+          simplebar(who, wiki_content_count, wiki_content_total)
         end
-        puts if wiki_pages_count < wiki_pages_total
+        puts if wiki_content_count < wiki_content_total
 
         who = "   in Issues"
         #issues_total = TICKET_MAP.length #works with Ruby <= 1.8.6
