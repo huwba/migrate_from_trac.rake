@@ -326,7 +326,7 @@ namespace :redmine do
                            TracTicketsCustomFields TracTimeline TracUnicode TracUpgrade TracWiki WikiDeletePage WikiFormatting \
                            WikiHtml WikiMacros WikiNewPage WikiPageNames WikiProcessors WikiRestructuredText WikiRestructuredTextLinks \
                            CamelCase TitleIndex TracNavigation TracFineGrainedPermissions TracWorkflow TimingAndEstimationPluginUserManual \
-                           PageTemplates)
+                           PageTemplates BadContent)
       class TracWikiPage < ActiveRecord::Base
         self.table_name = :wiki
         self.primary_key = :name
