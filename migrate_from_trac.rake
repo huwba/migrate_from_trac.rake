@@ -144,6 +144,16 @@ namespace :redmine do
         end
       end
 
+      class TracPriority < ActiveRecord::Base
+        self.table_name = :enum
+        self.default_scope { where(:type => 'priority') }
+        self.inheritance_column = :none
+
+        def value
+          read_attribute(:value)
+        end
+      end
+
       class TracTicketCustom < ActiveRecord::Base
         self.table_name = :ticket_custom
 
@@ -421,6 +431,23 @@ namespace :redmine do
         wiki = Wiki.new(:project => @target_project, :start_page => 'WikiStart')
         wiki_edit_count = 0
 
+        # Priorities
+
+        who = "Migrating priorities"
+        simplebar(who, 1, 2)
+        IssuePriority.destroy_all
+        priority_count = 0
+        TracPriority.order('value + 0').each do |priority| # implicit conversion to number by '+ 0'
+          priority_count += 1
+          p = IssuePriority.create!(
+              :name => priority['name'],
+              :position => priority_count,
+              :is_default  => priority_count == 2 ? true : false # HACK: second highest as default
+          )
+
+        end
+        simplebar(who, 2, 2)
+
         # Components
         who = "Migrating components"
         issues_category_map = {}
@@ -570,7 +597,7 @@ namespace :redmine do
             i = Issue.new :project => @target_project,
                           :subject => encode(ticket.summary[0, limit_for(Issue, 'subject')]),
                           :description => encode(ticket.description),
-                          :priority => PRIORITY_MAPPING[ticket.priority] || DEFAULT_PRIORITY,
+                          :priority => match_priority(ticket.priority),
                           :created_on => ticket.time
             # Add the ticket's author to project's reporter list (bugfix)
             i.author = find_or_create_user(ticket.reporter, true)
@@ -687,8 +714,8 @@ namespace :redmine do
               if priority_change
                 n.details << JournalDetail.new(:property => 'attr',
                                                :prop_key => PROP_MAPPING['priority'],
-                                               :old_value => PRIORITY_MAPPING[priority_change.oldvalue],
-                                               :value => PRIORITY_MAPPING[priority_change.newvalue])
+                                               :old_value => match_priority(priority_change.oldvalue),
+                                               :value => match_priority(priority_change.newvalue))
               end
               # Handle subject/summary changes
               if subject_change
@@ -993,6 +1020,25 @@ namespace :redmine do
         return false
       end
 
+      def self.match_priority(priority_name)
+        if migrate_or_map == 'map'
+          # map the priorities to PRIORITY_MAPPING
+          if PRIORITY_MAPPING[ticket.priority]
+            PRIORITY_MAPPING[ticket.priority]
+          else
+            DEFAULT_PRIORITY
+          end
+        else
+          # migrate the priorities
+          p = IssuePriority.find_by_name(priority_name.to_s)
+          if p
+            p
+          else
+           IssuePriority.default
+          end
+        end
+      end
+
       def self.set_trac_db_host(host)
         return nil if host.blank?
         @@trac_db_host = host
@@ -1024,7 +1070,12 @@ namespace :redmine do
         @@preserve_ticket_ids = preserve_ticket_ids
       end
 
-      mattr_reader :trac_directory, :trac_adapter, :trac_db_host, :trac_db_port, :trac_db_name, :trac_db_schema, :trac_db_username, :trac_db_password, :preserve_ticket_ids
+      def self.set_migrate_or_map(migrate_or_map)
+        @@migrate_or_map = migrate_or_map
+      end
+
+      mattr_reader :trac_directory, :trac_adapter, :trac_db_host, :trac_db_port, :trac_db_name, :trac_db_schema,
+                   :trac_db_username, :trac_db_password, :preserve_ticket_ids, :migrate_or_map
 
       def self.trac_db_path;
         "#{trac_directory}/db/trac.db"
@@ -1123,6 +1174,7 @@ namespace :redmine do
     prompt('Trac database encoding', :default => 'UTF-8') { |encoding| TracMigrate.encoding encoding }
     prompt('Target project identifier') { |identifier| TracMigrate.target_project_identifier identifier.downcase }
     prompt('Preserve Trac ticket ids (y|n)', :default => 'y') { |preserve_ids| TracMigrate.set_preserve_ticket_ids preserve_ids.downcase }
+    prompt('Migrate or map Trac priorities? (migrate|map)', :default => 'migrate') { |migrate_or_map| TracMigrate.set_migrate_or_map migrate_or_map.downcase }
     puts
 
     old_notified_events = Setting.notified_events
