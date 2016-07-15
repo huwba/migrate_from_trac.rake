@@ -1603,6 +1603,63 @@ namespace :redmine do
       src
     end
 
+    def self.convert_lists(src)
+      converted = []
+      in_list = false
+      level_count = 0
+      last_indent = 0
+      is_bullet_list = false
+      indicator_length = 0
+
+      src.lines.map.each do|line|
+        # detect start and continuation of lists
+        # eg:
+        #    | * item 1
+        #    | * item 2
+        #    |   continuation of line 2
+        #    |    * sub item of 2
+        #    | * item 3
+        #    |out of list
+        is_list_item = false
+        line.scan(/^(\ +)([\*-]|\d+\.)/) { |indent, indicator|
+          is_list_item = indent != nil
+          is_bullet_list = indicator == '*'
+          indicator_length = indicator.to_s.length
+          if indent.to_s.length > last_indent
+            level_count += 1
+          end
+          if indent.to_s.length < last_indent
+            level_count -= 1
+          end
+          level_count = 0 if level_count < 0 # avoid negative level counts
+          last_indent = indent.to_s.length
+        }
+        has_indent = line =~ /^\ +/
+        is_list_start = is_list_item && !in_list
+        in_list = is_list_start || (in_list && has_indent)
+
+        if !in_list
+          level_count = 0
+          last_indent = 0
+          converted << line
+          next
+        end
+
+        if is_list_item
+          if is_bullet_list
+            #      bullet
+            converted << (line.sub(/^\ +[\*-] /) { |s| '*' * level_count + " " })
+          else
+            #      numbered
+            converted << (line.gsub(/^\ +\d+\. /) { |s| '#' * level_count + " " })
+          end
+        else
+          converted << (line.gsub(/^\ +/) { |s| ' ' * (level_count * indicator_length ) })
+        end
+      end
+      converted.join()
+    end
+
     # Hide code blocks
     text = code_hide(text)
     # Clean up trailing whitespace
@@ -1702,10 +1759,7 @@ namespace :redmine do
     # Tables
     text = text.gsub(/\|\|/, '|')
     # Lists:
-    #      bullet
-    text = text.gsub(/^(\ +)[\*-] /) { |s| '*' * $1.length + " " }
-    #      numbered
-    text = text.gsub(/^(\ +)\d+\. /) { |s| '#' * $1.length + " " }
+    text = convert_lists(text)
     # Images (work for only attached in current page [[Image(picture.gif)]])
     # need rules for:  * [[Image(wiki:WikiFormatting:picture.gif)]] (referring to attachment on another page)
     #                  * [[Image(ticket:1:picture.gif)]] (file attached to a ticket)
