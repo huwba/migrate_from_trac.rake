@@ -1666,6 +1666,8 @@ namespace :redmine do
     text = text.gsub(/([^ \t\r\n]*?)[ \t]+$/, '\1')
     # New line
     text = text.gsub(/\[\[[Bb][Rr]\]\]/, "\n") # This has to go before the rules below
+    # Horizontal lines (need new line before)
+    text = text.gsub(/\n(.*?)\n[\-]{4,}/m) { |s| ($1 ? "\n#{$1}\n" : "\n") + "\n----"}
     # Titles (only h1. to h6., and remove #...)
     text = text.gsub(/(?:^|^\ +)(\={1,6})\ (.+)\ (?:\1)(?:\ *(\ \#.*))?/) { |s| "\nh#{$1.length}. #{$2}#{$3}\n" }
 
