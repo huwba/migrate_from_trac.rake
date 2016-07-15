@@ -1681,6 +1681,8 @@ namespace :redmine do
     text = text.gsub(/\[mailto\:([\"']?)(.+?)\1\]/, '\2')
 
     # Ticket links:
+    #      comment:ticket:1234:5
+    text = text.gsub(/comment\:ticket\:(\d+?)\:(\d+?)/, '#\1!#note-\2')
     #      [ticket:234 Text],[ticket:234 This is a test],[ticket:234 "This is a test"]
     #      [ticket:234 "Test "with quotes""] -> "Test 'with quotes'":issues/show/234
     text = text.gsub(/\[ticket\:(\d+)[\ \t]+([\"']?)(.+?)\2\]/) { |s| "\"#{$3.tr('"', '\'')}\":/issues/show/#{$1}" }
@@ -1730,7 +1732,7 @@ namespace :redmine do
     text = wiki_links_hide(text)
     # Links to CamelCase pages (not work for unicode)
     #      UsingJustWikiCaps,UsingJustWikiCaps/Subpage
-    text = text.gsub(/([^!]|^)(^| )([A-Z][a-z]+[A-Z][a-zA-Z]+(?:\/[^\s[:punct:]]+)*)/) {|s| "#{$1}#{$2}[[#{$3.delete('/')}]]"}
+    #text = text.gsub(/([^!]|^)(^| )([A-Z][a-z]+[A-Z][a-zA-Z]+(?:\/[^\s[:punct:]]+)*)/) {|s| "#{$1}#{$2}[[#{$3.delete('/')}]]"}
     # Normalize things that were supposed to not be links
     # like !NotALink
     text = text.gsub(/(^| )!([A-Z][A-Za-z]+)/, '\1\2')
