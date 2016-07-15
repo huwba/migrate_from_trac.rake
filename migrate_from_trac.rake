@@ -1682,7 +1682,7 @@ namespace :redmine do
 
     # Ticket links:
     #      comment:ticket:1234:5
-    text = text.gsub(/comment\:ticket\:(\d+?)\:(\d+?)/, '#\1!#note-\2')
+    text = text.gsub(/comment\:ticket\:(\d+?)\:(\d+?)/, '#\1#note-\2')
     #      [ticket:234 Text],[ticket:234 This is a test],[ticket:234 "This is a test"]
     #      [ticket:234 "Test "with quotes""] -> "Test 'with quotes'":issues/show/234
     text = text.gsub(/\[ticket\:(\d+)[\ \t]+([\"']?)(.+?)\2\]/) { |s| "\"#{$3.tr('"', '\'')}\":/issues/show/#{$1}" }
