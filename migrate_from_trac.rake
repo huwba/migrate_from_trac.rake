@@ -1732,7 +1732,14 @@ namespace :redmine do
     text = wiki_links_hide(text)
     # Links to CamelCase pages (not work for unicode)
     #      UsingJustWikiCaps,UsingJustWikiCaps/Subpage
-    #text = text.gsub(/([^!]|^)(^| )([A-Z][a-z]+[A-Z][a-zA-Z]+(?:\/[^\s[:punct:]]+)*)/) {|s| "#{$1}#{$2}[[#{$3.delete('/')}]]"}
+    text = text.gsub(/([^!]|^)(^| )([A-Z][a-z]+[A-Z][a-zA-Z]+(?:\/[^\s[:punct:]]+)*)/) {|s|
+      page_title = $3.delete('/')
+      if WikiPage.where(:title => page_title).count > 0
+        "#{$1}#{$2}[[#{page_title}]]"
+      else
+        "#{$1}#{$2}#{$3}"
+      end
+    }
     # Normalize things that were supposed to not be links
     # like !NotALink
     text = text.gsub(/(^| )!([A-Z][A-Za-z]+)/, '\1\2')
