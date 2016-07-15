@@ -1605,6 +1605,8 @@ namespace :redmine do
 
     # Hide code blocks
     text = code_hide(text)
+    # Clean up trailing whitespace
+    text = text.gsub(/([^ \t\r\n]*?)[ \t]+$/, '\1')
     # New line
     text = text.gsub(/\[\[[Bb][Rr]\]\]/, "\n") # This has to go before the rules below
     # Titles (only h1. to h6., and remove #...)
