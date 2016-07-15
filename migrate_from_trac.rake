@@ -1713,7 +1713,7 @@ namespace :redmine do
 
     # Internal Links:
     #      [SomeLink Link description]
-    text = text.gsub(/\[(.+?)\s+(.+?)\]/) { |s| "[[#{$1.delete(',./?;|:')}|#{$2}]]" }
+    text = text.gsub(/\[(?!wiki\:)(.+?)\s+(.+?)\]/) { |s| "[[#{$1.delete(',./?;|:')}|#{$2}]]" }
     #      ["Some Link"]
     text = text.gsub(/\[([\"'])(.+?)\1\]/) { |s| "[[#{$2.delete(',./?;|:')}]]" }
     #      [wiki:"Some Link" "Link description"],[wiki:"Some Link" Link description]
@@ -1730,7 +1730,7 @@ namespace :redmine do
     text = wiki_links_hide(text)
     # Links to CamelCase pages (not work for unicode)
     #      UsingJustWikiCaps,UsingJustWikiCaps/Subpage
-    #text = text.gsub(/([^!]|^)(^| )([A-Z][a-z]+[A-Z][a-zA-Z]+(?:\/[^\s[:punct:]]+)*)/) {|s| "#{$1}#{$2}[[#{$3.delete('/')}]]"}
+    text = text.gsub(/([^!]|^)(^| )([A-Z][a-z]+[A-Z][a-zA-Z]+(?:\/[^\s[:punct:]]+)*)/) {|s| "#{$1}#{$2}[[#{$3.delete('/')}]]"}
     # Normalize things that were supposed to not be links
     # like !NotALink
     text = text.gsub(/(^| )!([A-Z][A-Za-z]+)/, '\1\2')
