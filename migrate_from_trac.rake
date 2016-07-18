@@ -644,6 +644,7 @@ namespace :redmine do
           who = "Migrating tickets"
           tickets_total = TracTicket.count
           TracTicket.all.each do |ticket|
+            puts "trac ticket.time: #{ticket.time}"
             i = Issue.new :project => @target_project,
                           :subject => encode(ticket.summary[0, limit_for(Issue, 'subject')]),
                           :description => encode(ticket.description),
@@ -662,6 +663,11 @@ namespace :redmine do
               i.id = ticket.id unless Issue.exists?(ticket.id)
             end
             next unless i.save
+
+            # set timestamps with validation off (validation seems to fore all timestamps to be at NOW)
+            i.update_attribute(:created_on, ticket.time)
+            i.update_column(:updated_on, ticket.time)
+            last_updated_on = ticket.time
             TICKET_MAP[ticket.id] = i.id
             migrated_tickets += 1
 
@@ -701,13 +707,14 @@ namespace :redmine do
 
               # If it's the first note then we set the start working time to handle calendar and gantts
               if noteid == 1
-                i.start_date = time
+                i.update_attribute(:start_date, time) # update time stamp with validation off!
               end
 
               n = Journal.new :notes => (comment_change ? encode(comment_change.newvalue) : ''),
                               :created_on => time
               n.user = find_or_create_user(changeset.first.author)
               n.journalized = i
+              status_has_changed = false;
               if status_change &&
                   STATUS_MAPPING[status_change.oldvalue] &&
                   STATUS_MAPPING[status_change.newvalue] &&
@@ -716,6 +723,7 @@ namespace :redmine do
                                                :prop_key => PROP_MAPPING['status'],
                                                :old_value => STATUS_MAPPING[status_change.oldvalue].id,
                                                :value => STATUS_MAPPING[status_change.newvalue].id)
+                status_has_changed = true
               end
               if resolution_change
                 n.details << JournalDetail.new(:property => 'cf',
@@ -730,9 +738,9 @@ namespace :redmine do
                 # Arbitrary set the due time to the day the ticket was resolved for calendar and gantts
                 case RATIO_MAPPING[resolution_change.newvalue]
                   when 0
-                    i.due_date = nil
+                    i.update_attribute(:due_date, nil) # update time stamp with validation off!
                   when 100
-                    i.due_date = time
+                    i.update_attribute(:due_date , time) # update time stamp with validation off!
                 end
               end
               if keywords_change
@@ -797,15 +805,24 @@ namespace :redmine do
                                   :spent_on => time,
                                   :hours => time_change.newvalue,
                                   :created_on => time,
-                                  :updated_on => time,
+                                  :updated_on => time, # FIXME: this will always be NOW
                                   :activity_id => TimeEntryActivity.find_by_position(2).id,
                                   :comments => "#{convert_wiki_text(n.notes.each_line.first.chomp)[0, 100] unless !n.notes.each_line.first}... \"more\":/issues/#{i.id}#note-#{noteid}")
                 t.save
                 t.errors.to_a.each { |msg| puts msg }
               end
-              # Set correct changetime of the issue
-              next unless i.save
               n.save unless n.details.empty? && n.notes.blank?
+
+              # Update timestamps with validation off
+              i.update_column(:updated_on, time)
+              last_updated_on = time # preserve for resetting this after creating attachments and custom fields
+              if status_has_changed
+                if status_change.newvalue == 'closed'
+                  i.update_attribute(:closed_on, time)
+                else
+                  i.update_attribute(:closed_on, nil)
+                end
+              end
               noteid += 1
             end
 
@@ -831,7 +848,7 @@ namespace :redmine do
 
             if self.preserve_ticket_ids == 'y'
               # support for https://trac-hacks.org/wiki/ChildTicketsPlugin
-              # parent issue relation (currently only possible with peserved ticket ids)
+              # parent issue relation (currently only possible with preserved ticket ids)
               parent_ticket = ticket.customs.where("name = 'parent' AND value <> '' ").take # there should only be one
               if parent_ticket != nil
                 parent_id = parent_ticket.read_attribute(:value).to_s.sub(/^#/, '')
@@ -875,6 +892,8 @@ namespace :redmine do
 
             i.custom_field_values = custom_values
             i.save_custom_field_values
+            # reset timestamp with validation off
+            i.update_column(:updated_on, last_updated_on)
           end
 
           # update issue id sequence if needed (postgresql)
@@ -886,7 +905,9 @@ namespace :redmine do
             migrated_ticket_relations = 0
             parent_issue_map.each do |child_id, parent_id|
               child_issue = Issue.find(child_id)
+              last_updated_on = child_issue.updated_on
               if child_issue.update_attributes(:parent_issue_id => parent_id)
+                child_issue.update_column(:updated_on, last_updated_on)
                 migrated_ticket_relations += 1
               else
                 puts "ERROR: #{parent_id} <- #{child_id}"
@@ -985,6 +1006,8 @@ namespace :redmine do
           simplebar(who, issues_count, issues_total)
           next if newId.nil?
           issue = findIssue(newId)
+          last_updated_on = issue.updated_on
+          puts last_updated_on
           next if issue.nil?
           # convert issue description
           issue.description = convert_wiki_text(issue.description)
@@ -993,7 +1016,7 @@ namespace :redmine do
           # convert issue journals
           issue.journals.all.each do |journal|
             journal.notes = convert_wiki_text(journal.notes)
-            journal.save
+            journal.save(validate: false) # save and preserve timestamps
           end
         end
         puts if issues_count < issues_total
