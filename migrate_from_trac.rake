@@ -165,6 +165,16 @@ namespace :redmine do
         end
       end
 
+      class TracTicketType < ActiveRecord::Base
+        self.table_name = :enum
+        self.default_scope { where(:type => 'ticket_type') }
+        self.inheritance_column = :none
+
+        def value
+          read_attribute(:value)
+        end
+      end
+
       class TracTicketCustom < ActiveRecord::Base
         self.table_name = :ticket_custom
 
@@ -457,20 +467,57 @@ namespace :redmine do
         wiki = Wiki.new(:project => @target_project, :start_page => 'WikiStart')
         wiki_edit_count = 0
 
-        # Priorities
-        who = "Migrating priorities"
-        simplebar(who, 1, 2)
-        IssuePriority.destroy_all
-        priority_index = 0
-        TracPriority.order('value + 0').each do |priority| # implicit conversion to number by '+ 0'
-          priority_index += 1
-          p = IssuePriority.create!(
-              :name => priority['name'],
-              :position => priority_index,
-              :is_default  => priority_index == 2 ? true : false # HACK: second highest as default
-          )
+
+        # Ticket types
+        if migrate_or_map == 'migrate'
+          who = "Migrating ticket types"
+          existing_trackers = Tracker.all
+          simplebar(who, 1, 2)
+          ticket_type_index = 0
+          TracTicketType.order('value + 0').each do |ticket_type| # implicit conversion to number by '+ 0'
+
+            matching_tracker = nil
+            existing_trackers.each do |tracker|
+              if tracker.name == ticket_type['name']
+                matching_tracker = tracker
+              end
+            end
+            if matching_tracker == nil
+            ticket_type_index += 1
+            p = Tracker.create!(
+                :name => ticket_type['name'],
+                :default_status_id => 1,
+                :position => ticket_type_index
+            )
+            p.workflow_rules.copy(existing_trackers[0])
+            else
+              existing_trackers.delete(matching_tracker)
+            end
+          end
+          existing_trackers.each do |tracker|
+            tracker.delete
+          end
+          @target_project.trackers << Tracker.all
+          @target_project.save
+          simplebar(who, 2, 2)
         end
-        simplebar(who, 2, 2)
+
+        # Priorities
+        if migrate_or_map == 'migrate'
+          who = "Migrating priorities"
+          IssuePriority.destroy_all
+          simplebar(who, 1, 2)
+          priority_index = 0
+          TracPriority.order('value + 0').each do |priority| # implicit conversion to number by '+ 0'
+            priority_index += 1
+            p = IssuePriority.create!(
+                :name => priority['name'],
+                :position => priority_index,
+                :is_default  => priority_index == 2 ? true : false # HACK: second highest as default
+            )
+          end
+          simplebar(who, 2, 2)
+        end
 
         # Severities
         who = "Migrating severities"
@@ -596,7 +643,7 @@ namespace :redmine do
         r = IssueCustomField.new(:name => 'Resolution',
                                  :field_format => 'list',
                                  :is_filter => true) if r.nil?
-        r.trackers << [TRACKER_BUG, TRACKER_FEATURE, TRACKER_SUPPORT]
+        r.trackers << Tracker.all
         r.projects << @target_project
         r.possible_values = (r.possible_values + %w(fixed invalid wontfix duplicate worksforme)).flatten.compact.uniq
         r.save!
@@ -618,7 +665,7 @@ namespace :redmine do
                                  :field_format => 'version',
                                  :is_filter => true) if v.nil?
         # Only apply to BUG tracker (?)
-        v.trackers << TRACKER_BUG
+        v.trackers << Tracker.find_by_name('bug')
         #v.trackers << [TRACKER_BUG, TRACKER_FEATURE]
 
         # Affect custom field to current Project
@@ -632,7 +679,7 @@ namespace :redmine do
         tid = IssueCustomField.new(:name => 'TracID',
                                    :field_format => 'string',
                                    :is_filter => true) if tid.nil?
-        tid.trackers << [TRACKER_BUG, TRACKER_FEATURE, TRACKER_SUPPORT]
+        tid.trackers << Tracker.all
         tid.projects << @target_project
         tid.save!
         custom_field_map['tracid'] = tid
@@ -644,7 +691,6 @@ namespace :redmine do
           who = "Migrating tickets"
           tickets_total = TracTicket.count
           TracTicket.all.each do |ticket|
-            puts "trac ticket.time: #{ticket.time}"
             i = Issue.new :project => @target_project,
                           :subject => encode(ticket.summary[0, limit_for(Issue, 'subject')]),
                           :description => encode(ticket.description),
@@ -657,7 +703,7 @@ namespace :redmine do
             i.category = issues_category_map[ticket.component] unless ticket.component.blank?
             i.fixed_version = version_map[ticket.milestone] unless ticket.milestone.blank?
             i.status = STATUS_MAPPING[ticket.status] || DEFAULT_STATUS
-            i.tracker = TRACKER_MAPPING[ticket.ticket_type] || DEFAULT_TRACKER
+            i.tracker = match_ticket_type_to_tracker(ticket.ticket_type)
             if self.preserve_ticket_ids == 'y'
               # Ticket ID recycling
               i.id = ticket.id unless Issue.exists?(ticket.id)
@@ -794,8 +840,8 @@ namespace :redmine do
               if tracker_change
                 n.details << JournalDetail.new(:property => 'attr',
                                                :prop_key => PROP_MAPPING['type'],
-                                               :old_value => TRACKER_MAPPING[tracker_change.oldvalue] || DEFAULT_TRACKER,
-                                               :value => TRACKER_MAPPING[tracker_change.newvalue] || DEFAULT_TRACKER)
+                                               :old_value => match_ticket_type_to_tracker(tracker_change.oldvalue),
+                                               :value => match_ticket_type_to_tracker(tracker_change.newvalue))
               end
               # Add timelog entries for each time changes (from timeandestimation plugin)
               if time_change && time_change.newvalue != '0' && time_change.newvalue != ''
@@ -1134,6 +1180,19 @@ namespace :redmine do
         end
       end
 
+      def self.match_ticket_type_to_tracker(ticket_type)
+        if migrate_or_map == 'map'
+          # map the ticket_type to TRACKER_MAPPING
+          if TRACKER_MAPPING[ticket_type]
+            TRACKER_MAPPING[ticket_type]
+          else
+            DEFAULT_TRACKER
+          end
+        else
+          Tracker.find_by_name(ticket_type.to_s)
+        end
+      end
+
       def self.set_trac_db_host(host)
         return nil if host.blank?
         @@trac_db_host = host
@@ -1269,7 +1328,7 @@ namespace :redmine do
     prompt('Trac database encoding', :default => 'UTF-8') { |encoding| TracMigrate.encoding encoding }
     prompt('Target project identifier') { |identifier| TracMigrate.target_project_identifier identifier.downcase }
     prompt('Preserve Trac ticket ids (y|n)', :default => 'y') { |preserve_ids| TracMigrate.set_preserve_ticket_ids preserve_ids.downcase }
-    prompt('Migrate or map Trac priorities? (migrate|map)', :default => 'migrate') { |migrate_or_map| TracMigrate.set_migrate_or_map migrate_or_map.downcase }
+    prompt('Migrate or map Trac priorities and ticket types? (migrate|map)', :default => 'migrate') { |migrate_or_map| TracMigrate.set_migrate_or_map migrate_or_map.downcase }
     puts
 
     old_notified_events = Setting.notified_events
