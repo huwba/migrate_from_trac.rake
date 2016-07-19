@@ -42,7 +42,8 @@ namespace :redmine do
       STATUS_MAPPING = {'new' => DEFAULT_STATUS,
                         'reopened' => feedback_status,
                         'assigned' => assigned_status,
-                        'closed' => closed_status
+                        'closed' => closed_status,
+                        'reviewing' => feedback_status
       }
 
       priorities = IssuePriority.all
