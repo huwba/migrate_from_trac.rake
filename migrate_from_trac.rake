@@ -861,7 +861,7 @@ namespace :redmine do
               end
               n.save unless n.details.empty? && n.notes.blank?
 
-              # Update timestamps with validation off
+              # Update timestamps
               i.update_column(:updated_on, time)
               last_updated_on = time # preserve for resetting this after creating attachments and custom fields
               if status_has_changed
@@ -940,7 +940,7 @@ namespace :redmine do
 
             i.custom_field_values = custom_values
             i.save_custom_field_values
-            # reset timestamp with validation off
+            # reset timestamp
             i.update_column(:updated_on, last_updated_on)
           end
 
@@ -955,6 +955,7 @@ namespace :redmine do
               child_issue = Issue.find(child_id)
               last_updated_on = child_issue.updated_on
               if child_issue.update_attributes(:parent_issue_id => parent_id)
+                # reset timestamp
                 child_issue.update_column(:updated_on, last_updated_on)
                 migrated_ticket_relations += 1
               else
@@ -1047,9 +1048,16 @@ namespace :redmine do
         wiki_content_count = 0
         WikiContent.all.each do |wiki|
           ([wiki] + wiki.versions).each do |version|
+            last_updated_on = version.updated_on
             version.text = convert_wiki_text(version.text)
             version.save
+            # reset timestamp
+            version.update_column(:updated_on, last_updated_on)
           end
+          # to only keep the original history:
+          # whipeout the new version which has been just created on save
+          wiki.versions.reload
+          wiki.versions.last.delete
           wiki_content_count += 1
           simplebar(who, wiki_content_count, wiki_content_total)
         end
@@ -1071,8 +1079,7 @@ namespace :redmine do
           next unless issue.save
           # convert issue journals
           issue.journals.all.each do |journal|
-            journal.notes = convert_wiki_text(journal.notes)
-            journal.save(validate: false) # save and preserve timestamps
+            journal.update_column(:notes, convert_wiki_text(journal.notes)) # Avoid triggering callbacks: preserve timestamps
           end
         end
         puts if issues_count < issues_total
@@ -1085,14 +1092,13 @@ namespace :redmine do
           simplebar(who, milestone_wiki_count, milestone_wiki_total)
           p = wiki.find_page(name)
           next if p.nil?
-          p.content.text = convert_wiki_text(p.content.text)
-          p.content.save
+          p.content.update_column(:text, convert_wiki_text(p.content.text))  # Avoid triggering callbacks: preserve timestamps
         end
         puts if milestone_wiki_count < milestone_wiki_total
 
         who = "Close completed milestones"
         milestones_closed_count = 0
-        #                          :status => (!milestone.completed.blank? ? 'closed' : 'open')
+        # :status => (!milestone.completed.blank? ? 'closed' : 'open')
         milestones_closed.each do |vid|
           milestones_closed_count +=1
           simplebar(who, milestones_closed_count, milestones_closed.length)
