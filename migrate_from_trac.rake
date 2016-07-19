@@ -930,12 +930,21 @@ namespace :redmine do
               next
             end
             p = wiki.find_or_new_page(page.name)
-            p.content = WikiContent.new(:page => p) if p.new_record?
+            new_page = false
+            if p.new_record?
+              p.content = WikiContent.new(:page => p)
+              new_page = true
+            end
             p.content.text = page.text
             p.content.author = find_or_create_user(page.author) unless page.author.blank? || page.author == 'trac'
             p.content.comments = page.comment
             p.new_record? ? p.save : p.content.save
             migrated_wiki_edits += 1
+
+            last_updated = page.time
+            p.content.versions.last.update_column(:updated_on,last_updated)
+            p.content.update_column(:updated_on,last_updated)
+            p.update_column(:created_on,last_updated) if new_page
             simplebar(who, migrated_wiki_edits, wiki_edits_total)
 
             next if p.content.new_record?
