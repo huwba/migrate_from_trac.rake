@@ -1063,7 +1063,6 @@ namespace :redmine do
           next if newId.nil?
           issue = findIssue(newId)
           last_updated_on = issue.updated_on
-          puts last_updated_on
           next if issue.nil?
           # convert issue description
           issue.description = convert_wiki_text(issue.description)
