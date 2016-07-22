@@ -47,6 +47,28 @@ namespace :redmine do
                         'reviewing' => resolved_status,
       }
 
+      CUSTOM_STATUS = [
+          {'name' => 'Duplicate',
+           'default_done_ratio' => 100,
+           'is_closed' => true,
+           'from_status' => feedback_status
+          },
+          {'name' => 'Worksforme',
+           'default_done_ratio' => 100,
+           'is_closed' => true,
+           'from_status' => feedback_status
+          }
+      ]
+      RESOLUTION_STATUS_MAPPING = {
+          # trac resolution name => redmine status or status name (names will be replaced by the actual status)
+          'fixed' => closed_status,
+          'invalid' => rejected_status,
+          'wontfix' => rejected_status,
+          'worksforme' => 'Worksforme',
+          'duplicate' => 'Duplicate'
+      }
+
+
       priorities = IssuePriority.all
       DEFAULT_PRIORITY = priorities[0]
       PRIORITY_MAPPING = {'lowest' => priorities[0],
@@ -438,6 +460,63 @@ namespace :redmine do
         u
       end
 
+      def self.match_priority(priority_name)
+        if migrate_or_map == 'map'
+          # map the priorities to PRIORITY_MAPPING
+          if PRIORITY_MAPPING[ticket.priority]
+            PRIORITY_MAPPING[ticket.priority]
+          else
+            DEFAULT_PRIORITY
+          end
+        else
+          # migrate the priorities
+          p = IssuePriority.find_by_name(priority_name.to_s)
+          if p
+            p
+          else
+            IssuePriority.default
+          end
+        end
+      end
+
+      def self.match_ticket_type_to_tracker(ticket_type)
+        if migrate_or_map == 'map'
+          # map the ticket_type to TRACKER_MAPPING
+          if TRACKER_MAPPING[ticket_type]
+            TRACKER_MAPPING[ticket_type]
+          else
+            DEFAULT_TRACKER
+          end
+        else
+          Tracker.find_by_name(ticket_type.to_s)
+        end
+      end
+
+      # This is a copy from loader.rb
+      def self.create_workflows
+        # Workflow
+        Tracker.all.each { |t|
+          IssueStatus.all.each { |os|
+            IssueStatus.all.each { |ns|
+              Role.all.each { |r|
+                WorkflowTransition.create!(:tracker_id => t.id, :role_id => r.id, :old_status_id => os.id, :new_status_id => ns.id) unless os == ns
+              }
+            }
+          }
+        }
+      end
+
+      def self.match_ticket_status(track_ticket_status, trac_ticket_resolution = nil)
+        target_status = nil
+        if trac_ticket_resolution
+          target_status = RESOLUTION_STATUS_MAPPING[trac_ticket_resolution] if RESOLUTION_STATUS_MAPPING.key?(trac_ticket_resolution)
+        end
+        if !target_status
+          target_status = STATUS_MAPPING[track_ticket_status] || DEFAULT_STATUS
+        end
+        target_status
+      end
+
       # Basic wiki syntax conversion
       def self.convert_wiki_text(text)
         convert_wiki_text_mapping(text, TICKET_MAP)
@@ -469,39 +548,41 @@ namespace :redmine do
         wiki = Wiki.new(:project => @target_project, :start_page => 'WikiStart')
         wiki_edit_count = 0
 
+        # Custom status
+        who = 'Creating custom status'
+        simplebar(who, 0, 1)
+        CUSTOM_STATUS.each do |csd|
+          new_status = IssueStatus.new(
+              :name => csd['name'],
+              :default_done_ratio => csd['default_done_ratio'],
+              :is_closed => csd['is_closed']
+          )
+          next unless new_status.save
+          key = RESOLUTION_STATUS_MAPPING.key(csd['name'])
+          RESOLUTION_STATUS_MAPPING[key] = new_status
+        end
+        simplebar(who, 1, 1)
 
         # Ticket types
         if migrate_or_map == 'migrate'
           who = "Migrating ticket types"
-          existing_trackers = Tracker.all
-          simplebar(who, 1, 2)
+          Tracker.delete_all
+          simplebar(who, 1, 3)
           ticket_type_index = 0
           TracTicketType.order('value + 0').each do |ticket_type| # implicit conversion to number by '+ 0'
 
-            matching_tracker = nil
-            existing_trackers.each do |tracker|
-              if tracker.name == ticket_type['name']
-                matching_tracker = tracker
-              end
-            end
-            if matching_tracker == nil
             ticket_type_index += 1
             p = Tracker.create!(
                 :name => ticket_type['name'],
                 :default_status_id => 1,
                 :position => ticket_type_index
             )
-            p.workflow_rules.copy(existing_trackers[0])
-            else
-              existing_trackers.delete(matching_tracker)
-            end
-          end
-          existing_trackers.each do |tracker|
-            tracker.delete
           end
           @target_project.trackers << Tracker.all
           @target_project.save
           simplebar(who, 2, 2)
+          create_workflows
+          simplebar(who, 2, 3)
         end
 
         # Priorities
@@ -704,7 +785,7 @@ namespace :redmine do
             i.done_ratio = RATIO_MAPPING[ticket.resolution] || 0
             i.category = issues_category_map[ticket.component] unless ticket.component.blank?
             i.fixed_version = version_map[ticket.milestone] unless ticket.milestone.blank?
-            i.status = STATUS_MAPPING[ticket.status] || DEFAULT_STATUS
+            i.status = match_ticket_status(ticket.status, ticket.resolution)
             i.tracker = match_ticket_type_to_tracker(ticket.ticket_type)
             if self.preserve_ticket_ids == 'y'
               # Ticket ID recycling
@@ -769,8 +850,9 @@ namespace :redmine do
                   (STATUS_MAPPING[status_change.oldvalue] != STATUS_MAPPING[status_change.newvalue])
                 n.details << JournalDetail.new(:property => 'attr',
                                                :prop_key => PROP_MAPPING['status'],
-                                               :old_value => STATUS_MAPPING[status_change.oldvalue].id,
-                                               :value => STATUS_MAPPING[status_change.newvalue].id)
+                                               :old_value => match_ticket_status(status_change.oldvalue, resolution_change ? resolution_change.oldvalue : nil).id,
+                                               :value => match_ticket_status(status_change.newvalue, resolution_change ? resolution_change.newvalue : nil).id
+                )
                 status_has_changed = true
               end
               if resolution_change
@@ -1166,38 +1248,6 @@ namespace :redmine do
       rescue Exception => e
         puts e
         return false
-      end
-
-      def self.match_priority(priority_name)
-        if migrate_or_map == 'map'
-          # map the priorities to PRIORITY_MAPPING
-          if PRIORITY_MAPPING[ticket.priority]
-            PRIORITY_MAPPING[ticket.priority]
-          else
-            DEFAULT_PRIORITY
-          end
-        else
-          # migrate the priorities
-          p = IssuePriority.find_by_name(priority_name.to_s)
-          if p
-            p
-          else
-           IssuePriority.default
-          end
-        end
-      end
-
-      def self.match_ticket_type_to_tracker(ticket_type)
-        if migrate_or_map == 'map'
-          # map the ticket_type to TRACKER_MAPPING
-          if TRACKER_MAPPING[ticket_type]
-            TRACKER_MAPPING[ticket_type]
-          else
-            DEFAULT_TRACKER
-          end
-        else
-          Tracker.find_by_name(ticket_type.to_s)
-        end
       end
 
       def self.set_trac_db_host(host)
