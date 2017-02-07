@@ -536,7 +536,7 @@ namespace :redmine do
             :name => 'Severity',
             :field_format => 'list',
             :possible_values => severities,
-            :is_required => true,
+            :is_required => false,
             :is_filter => true,
             #:is_for_all => true,
             :searchable => true,
@@ -710,12 +710,20 @@ namespace :redmine do
               # Ticket ID recycling
               i.id = ticket.id unless Issue.exists?(ticket.id)
             end
-            next unless i.save
+            #next unless i.save
+    	    unless i.save 
+		i.errors.full_messages.each do |msg|
+			print "\nERROR : ",msg,"\n"
+		     end
+		     print "ERROR: Error saving issue.\n"
+	             next
+	    end           
 
+ 
             # set timestamps with validation off (validation seems to fore all timestamps to be at NOW)
             i.update_attribute(:created_on, ticket.time)
-            i.update_column(:updated_on, ticket.time)
-            last_updated_on = ticket.time
+            i.update_column(:updated_on, ticket.changetime)
+            last_updated_on = ticket.changetime
             TICKET_MAP[ticket.id] = i.id
             migrated_tickets += 1
 
@@ -728,13 +736,14 @@ namespace :redmine do
             # Handle CC field
             #  - Feature disabled (CC field almost never used, No time to validate/test this recent improvments from A. Callegaro)
             #  - Feature re-enabled and tested: Worked well with over 5000 tickets and about 7000 watcher records
-            ticket.cc.split(',').each do |email|
+            if !ticket.cc.nil?
+	    ticket.cc.try(:split,',').each do |email|
                w = Watcher.new :watchable_type => 'Issue',
                                :watchable_id => i.id,
                                :user_id => find_or_create_user(email.strip).id
                w.save
              end
-
+	    end
             # Necessary to handle direct link to note from timelogs and putting the right start time in issue
             noteid = 1
             # Comments and status/resolution/keywords changes
@@ -853,7 +862,7 @@ namespace :redmine do
                                   :spent_on => time,
                                   :hours => time_change.newvalue,
                                   :created_on => time,
-                                  :updated_on => time, # FIXME: this will always be NOW
+                                  :updated_on => ticket.changetime, # FIXME: this will always be NOW
                                   :activity_id => TimeEntryActivity.find_by_position(2).id,
                                   :comments => "#{convert_wiki_text(n.notes.each_line.first.chomp)[0, 100] unless !n.notes.each_line.first}... \"more\":/issues/#{i.id}#note-#{noteid}")
                 t.save
@@ -862,8 +871,8 @@ namespace :redmine do
               n.save unless n.details.empty? && n.notes.blank?
 
               # Update timestamps
-              i.update_column(:updated_on, time)
-              last_updated_on = time # preserve for resetting this after creating attachments and custom fields
+              i.update_column(:updated_on,ticket.changetime)
+              last_updated_on = ticket.changetime # preserve for resetting this after creating attachments and custom fields
               if status_has_changed
                 if status_change.newvalue == 'closed'
                   i.update_attribute(:closed_on, time)
@@ -941,7 +950,7 @@ namespace :redmine do
             i.custom_field_values = custom_values
             i.save_custom_field_values
             # reset timestamp
-            i.update_column(:updated_on, last_updated_on)
+             i.update_column(:updated_on, last_updated_on)
           end
 
           # update issue id sequence if needed (postgresql)
@@ -1076,13 +1085,16 @@ namespace :redmine do
           # convert issue description
           issue.description = convert_wiki_text(issue.description)
           # Converted issue comments had their last updated time set to the day of the migration (bugfix)
-          next unless issue.save
-          # convert issue journals
+          
+	  next unless issue.save
+	  # reset timestamp
+          issue.update_column(:updated_on, last_updated_on)          
+	  # convert issue journals
           issue.journals.all.each do |journal|
             journal.update_column(:notes, convert_wiki_text(journal.notes)) # Avoid triggering callbacks: preserve timestamps
           end
         end
-        puts if issues_count < issues_total
+       puts if issues_count < issues_total
 
         who = "   in Milestone descriptions"
         #milestone_wiki_total = milestone_wiki.length #works with Ruby <= 1.8.6
@@ -1167,12 +1179,12 @@ namespace :redmine do
         puts e
         return false
       end
-
-      def self.match_priority(priority_name)
+ 
+     def self.match_priority(priority_name)
         if migrate_or_map == 'map'
           # map the priorities to PRIORITY_MAPPING
-          if PRIORITY_MAPPING[ticket.priority]
-            PRIORITY_MAPPING[ticket.priority]
+          if PRIORITY_MAPPING[priority_name]
+            PRIORITY_MAPPING[priority_name]
           else
             DEFAULT_PRIORITY
           end
